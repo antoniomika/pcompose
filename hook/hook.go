@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Start initializes the git hook command
+// Start initializes the git hook command.
 func Start() {
 	hookType := strings.TrimPrefix(os.Args[0], utils.HooksDirName)
 

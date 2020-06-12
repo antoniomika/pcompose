@@ -23,7 +23,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// Start intiializes the ssh server for pcompose
+// Start intiializes the ssh server for pcompose.
 func Start() {
 	utils.WatchCerts()
 

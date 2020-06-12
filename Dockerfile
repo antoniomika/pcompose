@@ -12,7 +12,6 @@ RUN mkdir -p /gocache /gotmpdir
 COPY go.mod .
 COPY go.sum .
 
-RUN go mod tidy
 RUN go mod download
 
 COPY . .
@@ -33,6 +32,7 @@ WORKDIR /app
 RUN apk add --no-cache git docker-cli docker-compose
 
 COPY --from=builder /app/deploy/ /app/deploy/
+COPY --from=builder /app/README* /app/LICENSE* /app/
 COPY --from=builder /go/bin/ /app/
 
 ENTRYPOINT ["/app/pcompose"]

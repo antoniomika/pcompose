@@ -26,7 +26,7 @@ const (
 	ReceivePackServiceName = "git-receive-pack"
 )
 
-// SSHConnHolder is the ssh connection we hold onto
+// SSHConnHolder is the ssh connection we hold onto.
 type SSHConnHolder struct {
 	MainConn *ssh.ServerConn
 	W        uint32
@@ -40,14 +40,14 @@ type winsize struct {
 	Width  uint16
 }
 
-// ParseDims parses dimensions into width and height
+// ParseDims parses dimensions into width and height.
 func ParseDims(b []byte) (uint32, uint32) {
 	w := binary.BigEndian.Uint32(b)
 	h := binary.BigEndian.Uint32(b[4:])
 	return w, h
 }
 
-// SetWinSize sends a syscall to change the window size
+// SetWinSize sends a syscall to change the window size.
 func SetWinSize(fd uintptr, w, h uint32) {
 	ws := &winsize{Width: uint16(w), Height: uint16(h)}
 	_, _, err := syscall.Syscall(syscall.SYS_IOCTL, fd, uintptr(syscall.TIOCSWINSZ), uintptr(unsafe.Pointer(ws)))

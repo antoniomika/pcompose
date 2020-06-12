@@ -1,0 +1,4 @@
+deploy/
+dist/
+pcompose
+__debug_bin

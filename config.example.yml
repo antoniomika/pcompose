@@ -1,0 +1,25 @@
+authentication: false
+authentication-keys-directory: deploy/pubkeys/
+authentication-password: S3Cr3tP4$$W0rD
+banned-countries: ""
+banned-ips: ""
+cleanup-unbound: true
+config: config.yml
+data-directory: deploy/data/
+debug: false
+frontend-container-name: nginx-proxy
+geodb: false
+log-to-file: false
+log-to-file-compress: false
+log-to-file-max-age: 28
+log-to-file-max-backups: 3
+log-to-file-max-size: 500
+log-to-file-path: /tmp/pcompose.log
+log-to-stdout: true
+pcompose-container-name: pcompose
+private-key-location: deploy/keys/ssh_key
+private-key-passphrase: S3Cr3tP4$$phrAsE
+ssh-address: localhost:2222
+time-format: 2006/01/02 - 15:04:05
+whitelisted-countries: ""
+whitelisted-ips: ""

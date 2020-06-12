@@ -1,0 +1,14 @@
+/.dockerignore
+/Dockerfile
+/Dockerfile.buildkit
+/.git/
+/.github/
+/.gitignore
+/deploy/
+!/deploy/keys/.gitkeep
+!/deploy/data/.gitkeep
+!/deploy/pubkeys/.gitkeep
+/dist/
+/pcompose
+/.vscode/
+/__debug_bin

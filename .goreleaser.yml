@@ -1,0 +1,38 @@
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+builds:
+- ldflags:
+    - -s -w -X github.com/antoniomika/pcompose/cmd.Version={{ .Version }} -X github.com/antoniomika/pcompose/cmd.Commit={{ .Commit }} -X github.com/antoniomika/pcompose/cmd.Date={{ .Date }}
+  env:
+    - CGO_ENABLED=0
+  goos:
+    - linux
+    - win
+    - darwin
+    - windows
+  goarch:
+    - amd64
+    - arm
+    - arm64
+changelog:
+  sort: asc
+  filters:
+    exclude:
+    - '^docs:'
+    - '^test:'
+    - Merge pull request
+    - Merge branch
+archives:
+  - name_template: '{{ .ProjectName }}-{{ .Version }}.{{ .Os }}-{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+    wrap_in_directory: true
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE*
+      - README*
+      - deploy/keys/
+      - deploy/data/
+      - deploy/pubkeys/

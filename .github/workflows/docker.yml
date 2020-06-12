@@ -1,0 +1,49 @@
+name: Docker Image CI
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - name: Lint the codebase
+      run: |
+        docker run --rm -v $(pwd):/app -w /app golangci/golangci-lint:v1.27.0 golangci-lint run -E goimports
+    - name: Set up Docker Buildx
+      uses: crazy-max/ghaction-docker-buildx@v1
+      with:
+        version: latest
+    - name: Login to Docker Registry
+      env:
+        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      run: echo ${DOCKER_PASSWORD} | docker login -u ${DOCKER_USERNAME} --password-stdin
+    - name: Build and push the Docker images
+      run: |
+        BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+        DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        REF="${BRANCH_NAME:-master}"
+        OTHER_TAGS=""
+
+        if [[ ${GITHUB_REF} =~ ^refs\/tags\/v.*$ ]]
+        then
+          REF="${GITHUB_REF//refs\/tags\/}"
+          if ! [[ ${GITHUB_REF} =~ ^refs\/tags\/v.*-.*$ ]]
+          then
+            OTHER_TAGS="${OTHER_TAGS} -t ${GITHUB_REPOSITORY}:latest"
+          fi
+        fi
+
+        docker buildx build \
+          --push \
+          --platform linux/arm/v7,linux/arm64,linux/amd64 \
+          --cache-to type=registry,ref=${GITHUB_REPOSITORY}-cache,mode=max \
+          --cache-from ${GITHUB_REPOSITORY}-cache \
+          --build-arg VERSION=${REF} \
+          --build-arg COMMIT=${GITHUB_SHA} \
+          --build-arg DATE=${DATE} \
+          -t ${GITHUB_REPOSITORY}:${GITHUB_SHA} \
+          -t ${GITHUB_REPOSITORY}:${REF} \
+          -f Dockerfile.buildkit \
+          ${OTHER_TAGS} .

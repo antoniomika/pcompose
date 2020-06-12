@@ -4,7 +4,7 @@ before:
     - go generate ./...
 builds:
 - ldflags:
-    - -s -w -X github.com/antoniomika/pcompose/cmd.Version={{ .Version }} -X github.com/antoniomika/pcompose/cmd.Commit={{ .Commit }} -X github.com/antoniomika/pcompose/cmd.Date={{ .Date }}
+    - '{{ $gitURL := replace .GitURL ".git" "" }}{{ $sshRepo := replace $gitURL "git@github.com:" "" }}{{ $httpRepo := replace $sshRepo "https://github.com/" "" }}-s -w -X github.com/{{ $httpRepo }}/cmd.Version={{ .Version }} -X github.com/{{ $httpRepo }}/cmd.Commit={{ .Commit }} -X github.com/{{ $httpRepo }}/cmd.Date={{ .Date }}'
   env:
     - CGO_ENABLED=0
   goos:

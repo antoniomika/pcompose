@@ -1,0 +1,51 @@
+version: '3.7'
+
+services:
+  pcompose:
+    image: antoniomika/pcompose:latest
+    container_name: pcompose
+    depends_on:
+      - nginx-proxy
+      - nginx-proxy-letsencrypt
+    volumes:
+      - ./keys:/keys
+      - ./data:/data
+      - ./pubkeys:/pubkeys
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "2222:2222"
+    command: |
+      --ssh-address=:2222
+      --data-directory=/data
+      --authentication-keys-directory=/pubkeys
+      --private-key-location=/keys/ssh_key
+    restart: always
+  nginx-proxy:
+    image: jwilder/nginx-proxy:alpine
+    labels:
+      com.github.jrcs.letsencrypt_nginx_proxy_companion.nginx_proxy: "true"
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/vhost.d:/etc/nginx/vhost.d
+      - ./nginx/html:/usr/share/nginx/html
+      - ./nginx/dhparam:/etc/nginx/dhparam
+      - ./nginx/certs:/etc/nginx/certs:ro
+      - ./nginx/htpasswd:/etc/nginx/htpasswd:ro
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+  nginx-proxy-letsencrypt:
+    image: jrcs/letsencrypt-nginx-proxy-companion
+    container_name: nginx-proxy-letsencrypt
+    depends_on:
+      - nginx-proxy
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/vhost.d:/etc/nginx/vhost.d
+      - ./nginx/html:/usr/share/nginx/html
+      - ./nginx/dhparam:/etc/nginx/dhparam
+      - ./nginx/certs:/etc/nginx/certs:rw
+      - ./nginx/htpasswd:/etc/nginx/htpasswd:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro

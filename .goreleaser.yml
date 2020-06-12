@@ -9,9 +9,7 @@ builds:
     - CGO_ENABLED=0
   goos:
     - linux
-    - win
     - darwin
-    - windows
   goarch:
     - amd64
     - arm
@@ -27,9 +25,6 @@ changelog:
 archives:
   - name_template: '{{ .ProjectName }}-{{ .Version }}.{{ .Os }}-{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
     wrap_in_directory: true
-    format_overrides:
-      - goos: windows
-        format: zip
     files:
       - LICENSE*
       - README*

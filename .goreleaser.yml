@@ -2,6 +2,7 @@ before:
   hooks:
     - go mod tidy
     - go generate ./...
+    - go test ./...
 builds:
 - ldflags:
     - '{{ $gitURL := replace .GitURL ".git" "" }}{{ $sshRepo := replace $gitURL "git@github.com:" "" }}{{ $httpRepo := replace $sshRepo "https://github.com/" "" }}-s -w -X github.com/{{ $httpRepo }}/cmd.Version={{ .Version }} -X github.com/{{ $httpRepo }}/cmd.Commit={{ .Commit }} -X github.com/{{ $httpRepo }}/cmd.Date={{ .Date }}'

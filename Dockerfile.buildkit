@@ -28,7 +28,7 @@ ENV GOOS=${TARGETOS} GOARCH=${TARGETARCH}
 
 RUN go generate ./...
 RUN go test ./...
-RUN go install -ldflags="-s -w -X github.com/${REPOSITORY}/cmd.Version=${VERSION} -X github.com/${REPOSITORY}/cmd.Commit=${COMMIT} -X github.com/${REPOSITORY}/cmd.Date=${DATE}"
+RUN go build -o /go/bin/pcompose -ldflags="-s -w -X github.com/${REPOSITORY}/cmd.Version=${VERSION} -X github.com/${REPOSITORY}/cmd.Commit=${COMMIT} -X github.com/${REPOSITORY}/cmd.Date=${DATE}"
 
 FROM alpine as release
 LABEL maintainer="Antonio Mika <me@antoniomika.me>"

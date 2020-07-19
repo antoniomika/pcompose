@@ -150,6 +150,9 @@ func handleRequest(sshConn *pUtils.SSHConnHolder, newRequest *ssh.Request, chann
 		} else if strings.HasPrefix(containerName, "l-") {
 			containerName = strings.TrimPrefix(containerName, "l-")
 			cmd = exec.Command("docker", "logs", "-f", containerName)
+		} else if strings.HasPrefix(containerName, "a-") {
+			containerName = strings.TrimPrefix(containerName, "a-")
+			cmd = exec.Command("docker", "attach", containerName)
 		} else {
 			_, dirName := filepath.Split(containerName)
 			workDir := path.Join(viper.GetString("data-directory"), containerName, dirName)

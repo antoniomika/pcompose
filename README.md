@@ -112,6 +112,14 @@ You can grab and follow container logs through pcompose:
 ssh -p 2222 l-user_httpbin_whoami_1@example.com
 ```
 
+### Attach to container
+
+You can attach directly to a container through pcompose:
+
+```bash
+ssh -p 2222 a-user_httpbin_whoami_1@example.com
+```
+
 ## Caveats
 
 ### nginx-proxy

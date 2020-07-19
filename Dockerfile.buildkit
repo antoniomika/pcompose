@@ -43,8 +43,8 @@ WORKDIR /app
 
 RUN apk add --no-cache git docker-cli docker-compose
 
-COPY --from=builder /app/deploy/ /app/deploy/
-COPY --from=builder /app/README* /app/LICENSE* /app/
-COPY --from=builder /go/bin/ /app/
+COPY --from=build-image /app/deploy/ /app/deploy/
+COPY --from=build-image /app/README* /app/LICENSE* /app/
+COPY --from=build-image /go/bin/ /app/
 
 ENTRYPOINT ["/app/pcompose"]

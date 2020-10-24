@@ -13,16 +13,16 @@ import (
 )
 
 const (
-	// HooksDirName is the directory that contains git hooks
+	// HooksDirName is the directory that contains git hooks.
 	HooksDirName = "hooks/"
 
-	// HooksConfigFile is the config file used for hooks
+	// HooksConfigFile is the config file used for hooks.
 	HooksConfigFile = "hooks.yml"
 
-	// UploadPackServiceName is the command name for uploading a git pack
+	// UploadPackServiceName is the command name for uploading a git pack.
 	UploadPackServiceName = "git-upload-pack"
 
-	// ReceivePackServiceName is the command name for receiving a git pack
+	// ReceivePackServiceName is the command name for receiving a git pack.
 	ReceivePackServiceName = "git-receive-pack"
 )
 

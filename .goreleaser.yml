@@ -32,6 +32,4 @@ archives:
     files:
       - LICENSE*
       - README*
-      - deploy/keys/
-      - deploy/data/
-      - deploy/pubkeys/
+      - deploy/**/*

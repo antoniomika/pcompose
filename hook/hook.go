@@ -94,7 +94,12 @@ func handlePostReceive(hookType, repoDir, oldRev, newRev, refName string) {
 			os.Exit(1)
 		}
 
-		resetCmd := exec.Command("git", "reset", fmt.Sprintf("origin/%s", mainBranch), "--hard")
+		mainBranchString := strings.TrimSpace(string(mainBranch))
+		if mainBranchString == "" {
+			mainBranchString = "main"
+		}
+
+		resetCmd := exec.Command("git", "reset", fmt.Sprintf("origin/%s", mainBranchString), "--hard")
 		resetCmd.Dir = deploymentDir
 		resetCmd.Env = append(resetCmd.Env, "GIT_DIR=.git")
 		err = resetCmd.Run()

@@ -84,7 +84,17 @@ func handlePostReceive(hookType, repoDir, oldRev, newRev, refName string) {
 			os.Exit(1)
 		}
 
-		resetCmd := exec.Command("git", "reset", "origin/master", "--hard")
+		mainBranchCmd := exec.Command("sh", "-c", "git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'")
+		mainBranchCmd.Dir = deploymentDir
+		mainBranchCmd.Env = append(mainBranchCmd.Env, "GIT_DIR=.git")
+
+		mainBranch, err := mainBranchCmd.Output()
+		if err != nil {
+			log.Println("Error getting main branch:", err)
+			os.Exit(1)
+		}
+
+		resetCmd := exec.Command("git", "reset", fmt.Sprintf("origin/%s", mainBranch), "--hard")
 		resetCmd.Dir = deploymentDir
 		resetCmd.Env = append(resetCmd.Env, "GIT_DIR=.git")
 		err = resetCmd.Run()
@@ -130,5 +140,9 @@ func handlePostReceive(hookType, repoDir, oldRev, newRev, refName string) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	_ = cmd.Run()
+	err = cmd.Run()
+	if err != nil {
+		log.Println("Error running docker-compose up:", err)
+		os.Exit(1)
+	}
 }

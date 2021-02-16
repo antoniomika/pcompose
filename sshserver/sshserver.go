@@ -166,10 +166,14 @@ func handleRequest(sshConn *pUtils.SSHConnHolder, newRequest *ssh.Request, chann
 					"-e",
 					fmt.Sprintf("COMPOSE_PROJECT_NAME=%s", strings.ReplaceAll(containerName, string(os.PathSeparator), "_")),
 					viper.GetString("pcompose-container-name"),
-					"/bin/sh",
+					"/bin/zsh",
 				}...)
 			} else {
-				cmd = exec.Command("docker", "exec", "-it", containerName, "/bin/sh")
+				realCmd := "/bin/sh"
+				if containerName == viper.GetString("pcompose-container-name") {
+					realCmd = "/bin/zsh"
+				}
+				cmd = exec.Command("docker", "exec", "-it", containerName, realCmd)
 			}
 		}
 

@@ -43,7 +43,7 @@ This configuration will deploy [httpbin](https://httpbin.org) to be accessible f
 4. Add a remote that points to pcompose
     - `git remote add origin pcompose ssh://example.com:2222/user/httpbin`
 5. Push to the pcompose remote
-    - `git push pcompose master`
+    - `git push pcompose main`
 
 After step 5, you should see some output that looks like this:
 
@@ -57,7 +57,7 @@ Total 3 (delta 1), reused 0 (delta 0)
 remote: Creating user_httpbin_whoami_1 ... done
 remote:
 To ssh://example.com:2222/user/httpbin
-   95fae00..a34685d  master -> master
+   95fae00..a34685d  main -> main
 ```
 
 Once that's done, you should be ready to access your service at `https://http.example.com`

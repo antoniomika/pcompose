@@ -3,22 +3,22 @@ name: Docker Image CI
 on:
   push:
     tags:
-      - v*
+    - v*
     branches:
-    - master
+    - main
   pull_request:
     branches:
-    - master
+    - main
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v2
     - name: Lint the codebase
-      uses: golangci/golangci-lint-action@v1
+      uses: golangci/golangci-lint-action@v2
       with:
-        version: v1.31
+        version: latest
         args: -E goimports -E godot
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v1
@@ -48,7 +48,7 @@ jobs:
         fi
 
         DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-        REF="${BRANCH_NAME:-master}"
+        REF="${BRANCH_NAME:-main}"
         OTHER_ARGS=""
         OTHER_PUSH_ARGS=""
 

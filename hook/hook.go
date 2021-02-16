@@ -94,6 +94,9 @@ func handlePostReceive(hookType, repoDir, oldRev, newRev, refName string) {
 			os.Exit(1)
 		}
 
+		log.Println("Main branch:", mainBranch, err)
+		log.Println("git", "reset", fmt.Sprintf("origin/%s", mainBranch), "--hard")
+
 		resetCmd := exec.Command("git", "reset", fmt.Sprintf("origin/%s", mainBranch), "--hard")
 		resetCmd.Dir = deploymentDir
 		resetCmd.Env = append(resetCmd.Env, "GIT_DIR=.git")

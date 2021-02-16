@@ -94,10 +94,15 @@ func handlePostReceive(hookType, repoDir, oldRev, newRev, refName string) {
 			os.Exit(1)
 		}
 
-		log.Println("Main branch:", mainBranch, err)
-		log.Println("git", "reset", fmt.Sprintf("origin/%s", mainBranch), "--hard")
+		mainBranchString := "main"
+		if strings.TrimSpace(string(mainBranch)) != "" {
+			mainBranchString = strings.TrimSpace(string(mainBranch))
+		}
 
-		resetCmd := exec.Command("git", "reset", fmt.Sprintf("origin/%s", mainBranch), "--hard")
+		log.Println("Main branch:", mainBranchString, err)
+		log.Println("git", "reset", fmt.Sprintf("origin/%s", mainBranchString), "--hard")
+
+		resetCmd := exec.Command("git", "reset", fmt.Sprintf("origin/%s", mainBranchString), "--hard")
 		resetCmd.Dir = deploymentDir
 		resetCmd.Env = append(resetCmd.Env, "GIT_DIR=.git")
 		err = resetCmd.Run()

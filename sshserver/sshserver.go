@@ -25,7 +25,7 @@ import (
 
 // Start intiializes the ssh server for pcompose.
 func Start() {
-	utils.WatchCerts()
+	utils.WatchKeys()
 
 	if viper.GetBool("debug") {
 		go func() {
@@ -114,7 +114,10 @@ func handleRequest(sshConn *pUtils.SSHConnHolder, newRequest *ssh.Request, chann
 			log.Println("Error sending request to channel:", err)
 		}
 
-		channel.Close()
+		err = channel.Close()
+		if err != nil && viper.GetBool("debug") {
+			log.Println("Error closing channel:", err)
+		}
 	}
 
 	switch req := newRequest.Type; req {
@@ -177,10 +180,14 @@ func handleRequest(sshConn *pUtils.SSHConnHolder, newRequest *ssh.Request, chann
 			}
 		}
 
-		term, err := pty.Start(cmd)
+		term, dataHandler, err := pty.Open()
 		if err != nil {
 			log.Println("Error assigning pty:", err)
 		}
+
+		cmd.Stdin = dataHandler
+		cmd.Stdout = dataHandler
+		cmd.Stderr = dataHandler
 
 		sshConn.Mu.Lock()
 		pUtils.SetWinSize(term.Fd(), sshConn.W, sshConn.H)
@@ -188,16 +195,33 @@ func handleRequest(sshConn *pUtils.SSHConnHolder, newRequest *ssh.Request, chann
 		sshConn.Term = term
 		sshConn.Mu.Unlock()
 
+		err = cmd.Start()
+		if err != nil {
+			log.Println("error starting command")
+		}
+
 		go func() {
 			_, err := io.Copy(term, channel)
-			if err != nil {
+			if err != nil && viper.GetBool("debug") {
 				log.Println("Error copying from channel:", err)
 			}
 		}()
 
-		_, err = io.Copy(channel, term)
+		go func() {
+			_, err = io.Copy(channel, term)
+			if err != nil && viper.GetBool("debug") {
+				log.Println("Error copying from term:", err)
+			}
+		}()
+
+		err = cmd.Wait()
 		if err != nil {
-			log.Println("Error copying from term:", err)
+			log.Println("Error waiting for command:", err)
+		}
+
+		err = term.Close()
+		if err != nil && viper.GetBool("debug") {
+			log.Println("Error closing term:", err)
 		}
 	case "window-change":
 		w, h := pUtils.ParseDims(newRequest.Payload)

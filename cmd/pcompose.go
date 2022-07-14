@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/antoniomika/pcompose/hook"
 	"github.com/antoniomika/pcompose/sshserver"
@@ -57,8 +58,8 @@ func init() {
 	rootCmd.PersistentFlags().StringP("whitelisted-ips", "w", "", "A comma separated list of whitelisted ips. Applies to SSH connections")
 	rootCmd.PersistentFlags().StringP("whitelisted-countries", "y", "", "A comma separated list of whitelisted countries. Applies to SSH connections")
 	rootCmd.PersistentFlags().StringP("private-key-passphrase", "p", "S3Cr3tP4$$phrAsE", "Passphrase to use to encrypt the server private key")
-	rootCmd.PersistentFlags().StringP("private-key-location", "l", "deploy/keys/ssh_key", "The location of the SSH server private key. pcompose will create a private key here if\nit doesn't exist using the --private-key-passphrase to encrypt it if supplied")
-	rootCmd.PersistentFlags().StringP("authentication-password", "u", "S3Cr3tP4$$W0rD", "Password to use for ssh server password authentication")
+	rootCmd.PersistentFlags().StringP("private-keys-directory", "l", "deploy/keys", "The location of other SSH server private keys. sish will add these as valid auth methods for SSH. Note, these need to be unencrypted OR use the private-key-passphrase")
+	rootCmd.PersistentFlags().StringP("authentication-password", "u", "", "Password to use for ssh server password authentication")
 	rootCmd.PersistentFlags().StringP("authentication-keys-directory", "k", "deploy/pubkeys/", "Directory where public keys for public key authentication are stored.\npcompose will watch this directory and automatically load new keys and remove keys\nfrom the authentication list")
 	rootCmd.PersistentFlags().StringP("time-format", "", "2006/01/02 - 15:04:05", "The time format to use for general log messages")
 	rootCmd.PersistentFlags().StringP("log-to-file-path", "", "/tmp/pcompose.log", "The file to write log output to")
@@ -77,6 +78,8 @@ func init() {
 	rootCmd.PersistentFlags().IntP("log-to-file-max-size", "", 500, "The maximum size of outputed log files in megabytes")
 	rootCmd.PersistentFlags().IntP("log-to-file-max-backups", "", 3, "The maxium number of rotated logs files to keep")
 	rootCmd.PersistentFlags().IntP("log-to-file-max-age", "", 28, "The maxium number of days to store log output in a file")
+
+	rootCmd.PersistentFlags().DurationP("authentication-keys-directory-watch-interval", "", 200*time.Millisecond, "The interval to poll for filesystem changes for SSH keys")
 }
 
 // initConfig initializes the configuration and loads needed

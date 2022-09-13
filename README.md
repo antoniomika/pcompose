@@ -174,3 +174,8 @@ Flags:
   -y, --whitelisted-countries string           A comma separated list of whitelisted countries. Applies to SSH connections
   -w, --whitelisted-ips string                 A comma separated list of whitelisted ips. Applies to SSH connections
 ```
+
+
+### Infrastructure model
+
+![Infrastructure model](.infragenie/infrastructure_model.png)

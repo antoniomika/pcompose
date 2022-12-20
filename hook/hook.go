@@ -3,7 +3,7 @@ package hook
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -24,7 +24,7 @@ func Start() {
 		log.Println("Error getting working directory:", err)
 	}
 
-	data, err := ioutil.ReadAll(os.Stdin)
+	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		log.Println("Error reading from stdin:", err)
 	}

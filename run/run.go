@@ -58,11 +58,15 @@ func command(o Opts) *exec.Cmd {
 // process group with sig, and kills it if that wasn't enough. What's left in
 // the background counts, since it may hold the command's output open.
 func wait(ctx context.Context, cmd *exec.Cmd, sig syscall.Signal) error {
-	waited := make(chan error, 1)
-	go func() { waited <- cmd.Wait() }()
+	var err error
+	done := make(chan struct{})
+	go func() {
+		err = cmd.Wait()
+		close(done)
+	}()
 
 	select {
-	case err := <-waited:
+	case <-done:
 		return err
 	case <-ctx.Done():
 	}
@@ -71,7 +75,7 @@ func wait(ctx context.Context, cmd *exec.Cmd, sig syscall.Signal) error {
 		_ = syscall.Kill(-cmd.Process.Pid, sig)
 
 		select {
-		case <-waited:
+		case <-done:
 			return ctx.Err()
 		case <-time.After(killDelay):
 		}

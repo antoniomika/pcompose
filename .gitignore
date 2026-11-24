@@ -1,4 +1,6 @@
-deploy/
+deploy/*
+!deploy/.env.example
+!deploy/docker-compose.yml
 dist/
-pcompose
+/pcompose
 __debug_bin

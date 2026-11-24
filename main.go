@@ -2,15 +2,21 @@
 package main
 
 import (
-	"log"
+	"log/slog"
+	"os"
 
 	"github.com/antoniomika/pcompose/cmd"
+	"github.com/antoniomika/pcompose/hook"
 )
 
-// main will start the pcompose command lifecycle and spawn the pcompose services.
+// main runs pcompose, or the git hook it was invoked as.
 func main() {
-	err := cmd.Execute()
-	if err != nil {
-		log.Println("Unable to execute root command:", err)
+	if name := hook.Invoked(); name != "" {
+		os.Exit(hook.Run(name))
+	}
+
+	if err := cmd.Execute(); err != nil {
+		slog.Error("pcompose failed", "err", err)
+		os.Exit(1)
 	}
 }

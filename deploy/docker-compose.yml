@@ -1,51 +1,55 @@
-version: '3.7'
+name: pcompose
 
 services:
   pcompose:
     image: antoniomika/pcompose:latest
-    container_name: pcompose
-    depends_on:
-      - nginx-proxy
-      - nginx-proxy-letsencrypt
-    volumes:
-      - ./keys:/keys
-      - ./data:/data
-      - ./pubkeys:/pubkeys
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    ports:
-      - "2222:2222"
-    command: |
-      --ssh-address=:2222
-      --data-directory=/data
-      --authentication-keys-directory=/pubkeys
-      --private-key-location=/keys/ssh_key
     restart: always
-  nginx-proxy:
-    image: jwilder/nginx-proxy:alpine
-    labels:
-      com.github.jrcs.letsencrypt_nginx_proxy_companion.nginx_proxy: "true"
-    container_name: nginx-proxy
+    # Longer than --shutdown-timeout, so deploys can finish.
+    stop_grace_period: 6m
     ports:
-      - "80:80"
-      - "443:443"
+      - "${PCOMPOSE_SSH_PORT:-2222}:2222"
     volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d
-      - ./nginx/vhost.d:/etc/nginx/vhost.d
-      - ./nginx/html:/usr/share/nginx/html
-      - ./nginx/dhparam:/etc/nginx/dhparam
-      - ./nginx/certs:/etc/nginx/certs:ro
-      - ./nginx/htpasswd:/etc/nginx/htpasswd:ro
-      - /var/run/docker.sock:/tmp/docker.sock:ro
-  nginx-proxy-letsencrypt:
-    image: jrcs/letsencrypt-nginx-proxy-companion
-    container_name: nginx-proxy-letsencrypt
-    depends_on:
-      - nginx-proxy
+      - /var/run/docker.sock:/var/run/docker.sock
+      # The same path inside and out, since docker resolves projects' relative
+      # bind mounts on the host.
+      - ${PCOMPOSE_DATA:?set it in .env}:${PCOMPOSE_DATA}
+      - ./keys:/keys
+      - ./pubkeys:/pubkeys:ro
+      - home:/root
+    command:
+      - --ssh-address=:2222
+      - --data-directory=${PCOMPOSE_DATA}
+      - --private-keys-directory=/keys
+      - --authentication-keys-directory=/pubkeys
+
+  traefik:
+    image: traefik:v3
+    restart: always
+    ports:
+      - "${PCOMPOSE_HTTP_PORT:-80}:80"
+      - "${PCOMPOSE_HTTPS_PORT:-443}:443"
     volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d
-      - ./nginx/vhost.d:/etc/nginx/vhost.d
-      - ./nginx/html:/usr/share/nginx/html
-      - ./nginx/dhparam:/etc/nginx/dhparam
-      - ./nginx/certs:/etc/nginx/certs:rw
-      - ./nginx/htpasswd:/etc/nginx/htpasswd:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - acme:/acme
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=picd-ingress
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.websecure.http.tls.certresolver=default
+      - --certificatesresolvers.default.acme.email=${PCOMPOSE_ACME_EMAIL:?set it in .env}
+      - --certificatesresolvers.default.acme.storage=/acme/acme.json
+      - --certificatesresolvers.default.acme.httpchallenge.entrypoint=web
+    networks:
+      - ingress
+
+networks:
+  # Apps join this to be routed to. It's named as on picd, so the same compose
+  # files deploy on both.
+  ingress:
+    name: picd-ingress
+
+volumes:
+  acme:
+  home:

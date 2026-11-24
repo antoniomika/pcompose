@@ -1,176 +1,244 @@
 # pcompose
 
-An open source PaaS using docker-compose.
+Push to deploy for your own docker engine, using git, SSH, and docker compose.
 
-## Deploy
-
-Builds are made automatically on Dockerhub. Feel free to either use the automated binaries or to build your own.
-
-1. Clone this repo
-    - `git clone https://github.com/antoniomika/pcompose`
-2. Use docker-compose to stand up pcompose and nginx-proxy with Let's Encrypt
-    - `docker-compose -p pcompose -f deploy/docker-compose.yml up -d`
-
-And you're ready to start using it!
-
-## How it works
-
-pcompose is ultimately a wrapper around the docker-compose and docker CLIs. I could've integrated it directly with the APIs, but there were quite a few hacks that were needed to make that happen. Also, this made it extremely easy to continue to work with the familiar and easy to use CLIs
-
-pcompose implements an SSH server, which you can add authentication to, to allow you to push a git repo which is then used to stand up a docker-compose project. pcompose then offers some convenience features as well easy access to these deployed services, all from within a docker-compose.yml file.
-
-Here's an example `docker-compose.yml` file that works with pcompose:
-
-```yml
-version: '3.7'
-services:
-  whoami:
-    image: kennethreitz/httpbin
-    environment:
-      - VIRTUAL_HOST=http.example.com
-      - LETSENCRYPT_HOST=http.example.com
-      - LETSENCRYPT_EMAIL=certs@example.com
+```bash
+git remote add pcompose ssh://example.com:2222/web.git
+git push pcompose main
+curl https://web.example.com
 ```
 
-This configuration will deploy [httpbin](https://httpbin.org) to be accessible from the address `https://http.example.com` and will automatically setup Let's Encrypt and the nginx-proxy to the resource. All you need to do is:
+pcompose is for one person on one machine: an SSH server that runs your
+projects directly on a docker engine you give it.
 
-1. Place that file into a directory
-    - `mkdir httpbin && touch httpbin/docker-compose.yml`
-2. Initialize a git repo
-    - `cd httpbin && git init`
-3. Add and commit the file to the new repo
-    - `git add . && git commit -m "Init"`
-4. Add a remote that points to pcompose
-    - `git remote add origin pcompose ssh://example.com:2222/user/httpbin`
-5. Push to the pcompose remote
-    - `git push pcompose main`
-
-After step 5, you should see some output that looks like this:
-
-```text
-Enumerating objects: 5, done.
-Counting objects: 100% (5/5), done.
-Delta compression using up to 12 threads
-Compressing objects: 100% (2/2), done.
-Writing objects: 100% (3/3), 668 bytes | 668.00 KiB/s, done.
-Total 3 (delta 1), reused 0 (delta 0)
-remote: Creating user_httpbin_whoami_1 ... done
-remote:
-To ssh://example.com:2222/user/httpbin
-   95fae00..a34685d  main -> main
-```
-
-Once that's done, you should be ready to access your service at `https://http.example.com`
+> [!NOTE]
+> Want this without running a server? [picd](https://cd.pico.sh) is
+> [pico.sh](https://pico.sh)'s managed service that grew out of pcompose. It's
+> in closed beta for pico.sh users, and adds an isolated environment for every
+> user, managed variables, deploys from GitHub and other forges, zero-downtime
+> deploys, shells that resume, agent forwarding, project sharing, custom domains,
+> and public IPv6. Most compose files deploy on both once you change their
+> hostnames.
 
 ## Features
 
-There are a few useful features that are implemented into pcompose.
+- Deploy with `git push`. The push shows the deploy's output, and fails if the
+  deploy does.
+- HTTP routing and HTTPS certificates with Traefik labels.
+- Logs, and shells in your projects and containers, over SSH.
 
-### Integrated Shell
+## Security
 
-The first is a linux shell with access to docker-compose and docker CLIs which is scoped to each project:
+Every key in the keys directory belongs to you. Whoever has one controls the
+docker engine, which on most hosts is the same as root. There are no other
+users and nothing isolates projects from each other or from the host. If you
+need that, use [picd](https://cd.pico.sh).
 
-```bash
-ssh -p 2222 user/httpbin@example.com
-```
+## Install
 
-Will drop you right into a shell where you can run docker-compose or docker in the remote context.
-
-### Remote docker-compose
-
-You can also use docker-compose through pcompose in the project context easily:
-
-```bash
-ssh -p 2222 user/httpbin@example.com ps -a
-```
-
-or
+You need a host with docker and docker compose, and DNS pointing at it.
 
 ```bash
-ssh -p 2222 user/httpbin@example.com down
+git clone https://github.com/antoniomika/pcompose && cd pcompose/deploy
+cp .env.example .env # and edit it
+cp ~/.ssh/id_ed25519.pub pubkeys/me
+docker compose up -d
 ```
 
-### Exec into containers
+This runs pcompose on port 2222, and Traefik on ports 80 and 443. Files in
+`pubkeys` hold public keys in the `authorized_keys` format. Changes to them
+apply at the next login. Keys with options, such as `command=`, are ignored.
 
-Next, you can exec directly into a container through pcompose (granted, the container needs to have `/bin/sh`):
+`PCOMPOSE_DATA` is mounted at the same path on the host and in the container.
+Docker resolves a project's relative bind mounts on the host, so the paths have
+to match.
+
+pcompose runs the docker CLI, so it works with any engine that `DOCKER_HOST` or
+a docker context picks. It can also run outside of a container, where its
+shells are your user's:
 
 ```bash
-ssh -p 2222 user_httpbin_whoami_1@example.com
+go install github.com/antoniomika/pcompose@latest
+pcompose --authentication-keys-directory ~/.config/pcompose/pubkeys \
+  --private-keys-directory ~/.config/pcompose/keys \
+  --data-directory ~/.local/share/pcompose
 ```
 
-or
+## Deploy a project
+
+A project is a git repository with a compose file:
+
+```yaml
+services:
+  web:
+    image: traefik/whoami
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.web.rule=Host(`web.example.com`)
+    networks: [picd-ingress]
+networks:
+  picd-ingress:
+    external: true
+```
 
 ```bash
-ssh -p 2222 c-user_httpbin_whoami_1@example.com
+git init -b main && git add . && git commit -m init
+git remote add pcompose ssh://example.com:2222/web.git
+git push pcompose main
 ```
 
-### Container logs
-
-You can grab and follow container logs through pcompose:
+The first push creates the project. pcompose deploys the first branch you push.
+Pushes to other branches are stored without deploying, as are branches without
+a compose file. To deploy another branch:
 
 ```bash
-ssh -p 2222 l-user_httpbin_whoami_1@example.com
+ssh -p 2222 example.com git -C ../repos/web.git symbolic-ref HEAD refs/heads/staging
+ssh -p 2222 example.com redeploy web
 ```
 
-### Attach to container
+A push is refused if you changed files in the project's checkout by hand.
+Untracked files, such as an app's data in `./data`, don't count, and deploys
+leave them alone unless a push commits the same path.
 
-You can attach directly to a container through pcompose:
+Once a deploy starts it finishes, even if you disconnect.
+
+### Settings and secrets
+
+Add `.env` to the project's `.gitignore`, and put one in its checkout on the
+server. Compose reads it on every deploy:
 
 ```bash
-ssh -p 2222 a-user_httpbin_whoami_1@example.com
+ssh -p 2222 example.com create web # if it hasn't been pushed yet
+ssh -p 2222 web@example.com tee .env < .env
+ssh -p 2222 example.com redeploy web # if it has
 ```
 
-## Caveats
+Or edit it in a shell with `ssh -p 2222 web@example.com`. Keep it out of
+your commits: pushing one that has a `.env` replaces the server's, and a later
+commit that removes it deletes it.
 
-### nginx-proxy
+### Compose files
 
-[nginx-proxy](https://github.com/nginx-proxy/nginx-proxy) is a pretty great tool to handle dynamic host configuration. This can easily be swapped for [traefik](https://containo.us/traefik/) or some other reverse proxy that supports configuration using docker.
+pcompose deploys the first of `compose.yaml`, `compose.yml`,
+`docker-compose.yaml`, and `docker-compose.yml`, then the first matching
+`.override` file. On top of those it adds every one of these that exists, for
+settings that only apply on pcompose: `compose.pcompose.yaml`,
+`compose.pcompose.yml`, `docker-compose.pcompose.yaml`,
+`docker-compose.pcompose.yml`, `pcompose.yaml`, and `pcompose.yml`.
 
-The way this currently works is pcompose will create the default network for docker-compose and will attach `nginx-proxy` to the created network. This means you must use the default network or at least pre-create the network and attach `nginx-proxy` to it in order to use it for HTTP(S) reverse proxying
+`COMPOSE_FILE` in the project's `.env` replaces all of this.
 
-### Persistence
+Services without a `restart` or `deploy.restart_policy` get `unless-stopped`.
+Set `restart: "no"` on ones that run once, such as migrations, so they aren't
+started again.
 
-`docker-compose` allows the use of relative directories for defining data volumes in applications. I recommend using relative directories from your application to make it easy for you to find your data when you need to.
+A compose project is named after the pcompose project, or by
+`COMPOSE_PROJECT_NAME` in its `.env` or `name` in its compose file. pcompose refuses to deploy or take
+down a compose project that runs from another directory, so it can't replace
+something you started yourself.
 
-I also recommend to bind mount the `--data-directory` to be the same in both the host and the pcompose container. If your application uses a relative mount and the data directory is not the same, your persistence data could end up in a different location than intended!
+## Commands
 
-## CLI Flags
+Run these with `ssh -p 2222 example.com <command>`.
+
+| Command | |
+|---|---|
+| `projects` | List your projects |
+| `create <project>` | Create a project before its first push |
+| `redeploy [project] [--force]` | Deploy a project again without a push. `--force` discards changes made by hand |
+| `logs [project] [service...] [-f]` | Show a project's logs; `-f` follows them |
+| `compose [project] <args...>` | Run `docker compose` in a project, such as `ps` or `down` |
+| `delete [project] --confirm <project>` | Delete a project and everything it holds, for good: its apps, volumes, repository, checkout, and `.env` |
+| `help` | Show the commands |
+
+`[project]` defaults to the SSH user, so `ssh web@example.com logs` is
+`logs web`.
+
+`compose` takes no flags before its command, such as `-p`, since they can pick
+another project. Run `docker compose` in the project's shell for those.
+
+## Shells
+
+Anything that isn't a command above runs as a command. The SSH user picks
+where:
+
+```bash
+ssh -p 2222 example.com              # a shell in your projects directory
+ssh -p 2222 web@example.com          # a shell in a project
+ssh -p 2222 web@example.com ls       # a command in a project
+ssh -p 2222 c-web-web-1@example.com  # a shell in a container
+ssh -p 2222 l-web-web-1@example.com  # follow a container's logs
+ssh -p 2222 a-web-web-1@example.com  # attach to a container
+```
+
+Commands aren't run through a shell. `ssh web@example.com 'cat > .env'` doesn't
+write a file, and `tee .env` or `sh -c` does.
+
+Your local docker CLI can use the engine through pcompose:
+
+```bash
+docker -H ssh://example.com:2222 ps
+```
+
+## Using another reverse proxy
+
+Remove Traefik from `deploy/docker-compose.yml` and attach your own proxy to the
+`picd-ingress` network, or name another network with `--ingress-network`.
+
+## Upgrading from 0.3
+
+Projects moved from `<data>/user/app` and `<data>/user/app/app` to
+`<data>/repos/user/app.git` and `<data>/projects/user/app`, and pcompose no
+longer connects nginx-proxy to every project's network. For each project, with
+pcompose stopped:
+
+```bash
+cd <data>
+docker compose -p user_app down # keeps volumes
+mkdir -p projects/user repos/user
+mv user/app/app projects/user/app
+mv user/app repos/user/app.git
+rm -f repos/user/app.git/hooks/pre-receive repos/user/app.git/hooks/update repos/user/app.git/hooks/post-receive
+```
+
+Then remove `<data>/hooks.yml`, start the new pcompose, and push each project
+again to the same URL. Add Traefik labels, or
+attach your nginx-proxy and the project's services to `picd-ingress`.
+
+Public key authentication is now always required. The `--authentication`,
+password, IP and country filter, `--log-to-file`, `--cleanup-unbound`, and
+container name flags are gone. To keep a host key, leave it in the keys
+directory, and set `--private-key-passphrase` if it's encrypted, since the
+passphrase no longer has a default.
+
+## Configuration
+
+Every flag can also be set in `config.yml`, or in the environment as
+`PCOMPOSE_` and its name, such as `PCOMPOSE_SSH_ADDRESS`.
 
 ```text
-pcompose is a command line utility that runs a simple PaaS ontop of docker using docker-compose and git
-
-Usage:
-  pcompose [flags]
-
-Flags:
-      --authentication                         Require authentication for the SSH service
-  -k, --authentication-keys-directory string   Directory where public keys for public key authentication are stored.
-                                               pcompose will watch this directory and automatically load new keys and remove keys
-                                               from the authentication list (default "deploy/pubkeys/")
-  -u, --authentication-password string         Password to use for ssh server password authentication (default "S3Cr3tP4$$W0rD")
-  -o, --banned-countries string                A comma separated list of banned countries. Applies to SSH connections
-  -x, --banned-ips string                      A comma separated list of banned ips that are unable to access the service. Applies to SSH connections
-      --cleanup-unbound                        Cleanup unbound (unforwarded) SSH connections after a set timeout (default true)
+  -k, --authentication-keys-directory string   Directory of the public keys that may log in. Changes apply at the next login (default "deploy/pubkeys")
   -c, --config string                          Config file (default "config.yml")
-      --data-directory string                  Directory that holds pcompose data (default "deploy/data/")
-      --debug                                  Enable debugging information
-      --frontend-container-name string         The name of the frontend container in order to connect it to the default docker-compose network. (default "nginx-proxy")
-      --geodb                                  Use a geodb to verify country IP address association for IP filtering
+      --data-directory string                  Directory that holds repositories, checkouts, and pcompose's git hooks. The docker engine must see it at the same path for relative bind mounts to work (default "deploy/data")
+      --debug                                  Log debugging information, which includes commands' arguments
+      --deploy-timeout duration                How long a deploy may take (default 30m0s)
   -h, --help                                   help for pcompose
-      --log-to-file                            Enable writing log output to file, specified by log-to-file-path
-      --log-to-file-compress                   Enable compressing log output files
-      --log-to-file-max-age int                The maxium number of days to store log output in a file (default 28)
-      --log-to-file-max-backups int            The maxium number of rotated logs files to keep (default 3)
-      --log-to-file-max-size int               The maximum size of outputed log files in megabytes (default 500)
-      --log-to-file-path string                The file to write log output to (default "/tmp/pcompose.log")
-      --log-to-stdout                          Enable writing log output to stdout (default true)
-      --pcompose-container-name string         The name of the pcompose container in order to exec into a context. (default "pcompose")
-  -l, --private-key-location string            The location of the SSH server private key. pcompose will create a private key here if
-                                               it doesn't exist using the --private-key-passphrase to encrypt it if supplied (default "deploy/keys/ssh_key")
-  -p, --private-key-passphrase string          Passphrase to use to encrypt the server private key (default "S3Cr3tP4$$phrAsE")
-  -a, --ssh-address string                     The address to listen for SSH connections (default "localhost:2222")
-      --time-format string                     The time format to use for general log messages (default "2006/01/02 - 15:04:05")
+      --ingress-network string                 The docker network the ingress reaches apps on, created if it's missing. Empty creates none (default "picd-ingress")
+  -p, --private-key-passphrase string          Passphrase for encrypted SSH host keys in the private keys directory
+  -l, --private-keys-directory string          Directory of SSH host keys. pcompose generates ssh_host_ed25519_key in it (default "deploy/keys")
+      --runtime-directory string               Directory that holds the git hooks and their socket, which only pcompose's user may use. Defaults to run in the data directory
+      --shutdown-timeout duration              How long pushes, commands, and deploys have to finish when pcompose is asked to stop (default 5m0s)
+  -a, --ssh-address string                     The address to listen for SSH connections on (default "localhost:2222")
   -v, --version                                version for pcompose
-  -y, --whitelisted-countries string           A comma separated list of whitelisted countries. Applies to SSH connections
-  -w, --whitelisted-ips string                 A comma separated list of whitelisted ips. Applies to SSH connections
 ```
+
+## Development
+
+```bash
+go test ./...
+PCOMPOSE_INTEGRATION=1 go test ./... # also deploys on this machine's docker engine
+```
+
+## License
+
+See [LICENSE](LICENSE).

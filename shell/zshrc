@@ -1,0 +1,8 @@
+# pcompose's defaults. ~/.zshrc runs after this.
+autoload -Uz compinit && compinit -d /tmp/.zcompdump
+setopt inc_append_history
+HISTFILE=~/.zsh_history HISTSIZE=50000 SAVEHIST=50000
+bindkey -e
+PROMPT='%F{cyan}%~%f %# '
+# An empty one keeps zsh from offering to make one at every login.
+[ -e ~/.zshrc ] || touch ~/.zshrc

@@ -1,153 +1,110 @@
-// Package hook implements the necessary handle for git hooks used by pcompose
+// Package hook connects the git hooks a push runs to the pcompose that serves
+// the push. Each hook is a link to pcompose's own executable.
 package hook
 
 import (
+	"context"
 	"fmt"
 	"io"
-	"log"
+	"net"
+	"net/http"
 	"os"
-	"os/exec"
-	"path"
 	"path/filepath"
-	"strings"
-
-	"github.com/antoniomika/pcompose/utils"
-	"github.com/spf13/viper"
+	"slices"
 )
 
-// Start initializes the git hook command.
-func Start() {
-	hookType := strings.TrimPrefix(os.Args[0], utils.HooksDirName)
+const (
+	// SocketEnv and IDEnv are set for a push's git-receive-pack: where
+	// pcompose listens for its hooks, and which push they're for.
+	SocketEnv = "PCOMPOSE_HOOK_SOCKET"
+	IDEnv     = "PCOMPOSE_HOOK_ID"
 
-	repoDir, err := os.Getwd()
-	if err != nil {
-		log.Println("Error getting working directory:", err)
+	// FailedTrailer is set on the response to a hook that failed.
+	FailedTrailer = "Pcompose-Failed"
+)
+
+// Names are the hooks pcompose runs.
+var Names = []string{"pre-receive", "post-receive"}
+
+// Invoked returns the hook this process was run as, or "".
+func Invoked() string {
+	name := filepath.Base(os.Args[0])
+	if slices.Contains(Names, name) && os.Getenv(SocketEnv) != "" {
+		return name
 	}
 
-	data, err := io.ReadAll(os.Stdin)
-	if err != nil {
-		log.Println("Error reading from stdin:", err)
-	}
-
-	commandArgs := strings.Fields(strings.TrimSpace(string(data)))
-
-	var oldRev string
-	var newRev string
-	var refName string
-
-	if len(commandArgs) > len(os.Args) {
-		oldRev = commandArgs[0]
-		newRev = commandArgs[1]
-		refName = commandArgs[2]
-	} else {
-		oldRev = os.Args[2]
-		newRev = os.Args[3]
-		refName = os.Args[1]
-	}
-
-	switch hookType {
-	case "pre-receive":
-		handlePreReceive(hookType, repoDir, oldRev, newRev, refName)
-	case "update":
-		handleUpdate(hookType, repoDir, oldRev, newRev, refName)
-	case "post-receive":
-		handlePostReceive(hookType, repoDir, oldRev, newRev, refName)
-	default:
-		log.Println("Undefined hook type:", hookType)
-		return
-	}
+	return ""
 }
 
-func handlePreReceive(hookType, repoDir, oldRev, newRev, refName string) {
-}
-
-func handleUpdate(hookType, repoDir, oldRev, newRev, refName string) {
-}
-
-func handlePostReceive(hookType, repoDir, oldRev, newRev, refName string) {
-	deploymentDir := path.Join(repoDir, path.Base(repoDir))
-
-	if _, err := os.Stat(deploymentDir); os.IsNotExist(err) {
-		cloneCmd := exec.Command("git", "clone", repoDir, deploymentDir)
-		err := cloneCmd.Run()
-		if err != nil {
-			log.Println("Error cloning git repository:", err)
-			os.Exit(1)
-		}
-	} else {
-		fetchCmd := exec.Command("git", "fetch")
-		fetchCmd.Dir = deploymentDir
-		fetchCmd.Env = append(fetchCmd.Env, "GIT_DIR=.git")
-		err := fetchCmd.Run()
-		if err != nil {
-			log.Println("Error fetching git repository:", err)
-			os.Exit(1)
-		}
-
-		mainBranchCmd := exec.Command("sh", "-c", "git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'")
-		mainBranchCmd.Dir = deploymentDir
-		mainBranchCmd.Env = append(mainBranchCmd.Env, "GIT_DIR=.git")
-
-		mainBranch, err := mainBranchCmd.Output()
-		if err != nil {
-			log.Println("Error getting main branch:", err)
-			os.Exit(1)
-		}
-
-		mainBranchString := strings.TrimSpace(string(mainBranch))
-		if mainBranchString == "" {
-			mainBranchString = "main"
-		}
-
-		resetCmd := exec.Command("git", "reset", fmt.Sprintf("origin/%s", mainBranchString), "--hard")
-		resetCmd.Dir = deploymentDir
-		resetCmd.Env = append(resetCmd.Env, "GIT_DIR=.git")
-		err = resetCmd.Run()
-		if err != nil {
-			log.Println("Error resetting git repository:", err)
-			os.Exit(1)
-		}
+// Install links the hooks into dir to this executable, unless they already are.
+func Install(dir string) error {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
 	}
 
 	executable, err := os.Executable()
 	if err != nil {
-		log.Println("Error getting executable path:", err)
+		return err
 	}
 
-	executablePath, err := filepath.EvalSymlinks(executable)
+	// Git silently skips hooks it can't run.
+	if _, err := os.Stat(executable); err != nil {
+		return err
+	}
+
+	for _, name := range Names {
+		link := filepath.Join(dir, name)
+		if current, err := os.Readlink(link); err == nil && current == executable {
+			continue
+		}
+
+		// Renamed into place, so a push at the same time always finds one.
+		tmp, err := os.MkdirTemp(dir, ".new-")
+		if err != nil {
+			return err
+		}
+		defer func() { _ = os.RemoveAll(tmp) }()
+
+		if err := os.Symlink(executable, filepath.Join(tmp, name)); err != nil {
+			return err
+		}
+
+		if err := os.Rename(filepath.Join(tmp, name), link); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// Run passes the hook's input to pcompose and prints what it answers. It
+// returns the hook's exit code.
+func Run(name string) int {
+	socket, id := os.Getenv(SocketEnv), os.Getenv(IDEnv)
+
+	client := &http.Client{Transport: &http.Transport{
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, "unix", socket)
+		},
+	}}
+
+	// Reading from a pipe leaves its length unknown, which is fine: the
+	// request is sent chunked.
+	res, err := client.Post("http://pcompose/"+id+"/"+name, "text/plain", io.NopCloser(os.Stdin))
 	if err != nil {
-		log.Println("Unable to evaluate symlink:", err)
+		_, _ = fmt.Fprintln(os.Stderr, "pcompose couldn't be reached:", err)
+		return 1
+	}
+	defer func() { _ = res.Body.Close() }()
+
+	if _, err := io.Copy(os.Stdout, res.Body); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, "pcompose stopped answering:", err)
+		return 1
 	}
 
-	appDir := path.Dir(executablePath)
-
-	dataDir := viper.GetString("data-directory")
-	if !path.IsAbs(dataDir) {
-		dataDir = path.Join(appDir, dataDir)
+	if res.StatusCode != http.StatusOK || res.Trailer.Get(FailedTrailer) != "" {
+		return 1
 	}
 
-	pathSlice := strings.Split(strings.TrimPrefix(repoDir, dataDir+string(os.PathSeparator)), string(os.PathSeparator))
-	composeProject := strings.Join(pathSlice, "_")
-
-	networkName := fmt.Sprintf("%s_default", composeProject)
-
-	networkCreate := exec.Command("docker", "network", "create", networkName)
-	networkCreate.Dir = deploymentDir
-	_ = networkCreate.Run()
-
-	networkConnect := exec.Command("docker", "network", "connect", networkName, viper.GetString("frontend-container-name"))
-	networkConnect.Dir = deploymentDir
-	_ = networkConnect.Run()
-
-	cmd := exec.Command("docker-compose", "-p", composeProject, "up", "-d", "--build")
-
-	cmd.Dir = deploymentDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	err = cmd.Run()
-	if err != nil {
-		log.Println("Error running docker-compose up:", err)
-		os.Exit(1)
-	}
+	return 0
 }

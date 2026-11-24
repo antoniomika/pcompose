@@ -11,6 +11,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 env:
   PLATFORMS: |
     linux/arm/v7
@@ -25,58 +28,57 @@ env:
 
 jobs:
   test:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
-    - name: Set up Go
-      uses: actions/setup-go@v3
-      with:
-        go-version: 1.19
     - name: Checkout repo
-      uses: actions/checkout@v3
-    - name: Lint the codebase
-      uses: golangci/golangci-lint-action@v3
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - name: Set up Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
-        version: latest
-        args: -E goimports -E godot
+        go-version: 1.27
+    - name: Lint the codebase
+      uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+      with:
+        version: v2.15.0
     - name: Run tests
       run: |
         go test -v ./... -cover -race -coverprofile=coverage.out
         go tool cover -func=coverage.out -o=coverage.out
+      env:
+        PCOMPOSE_INTEGRATION: 1
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: test
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Set up QEMU
-      uses: docker/setup-qemu-action@v2
+      uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
       with:
         platforms: all
     - name: Set up Docker Buildx
       id: buildx
-      uses: docker/setup-buildx-action@v2
-      with:
-        version: latest
+      uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
     - name: Login to Docker Hub
       if: ${{ github.actor == github.repository_owner }}
-      uses: docker/login-action@v2
+      uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
       with:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
     - name: Collect image metadata
       id: meta
-      uses: docker/metadata-action@v4
+      uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
       with:
         images: ${{ github.repository }}
         tags: ${{ env.TAGS }}
     - name: Collect build image metadata
       id: buildmeta
-      uses: docker/metadata-action@v4
+      uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
       with:
         images: ${{ github.repository }}-build-image
         tags: ${{ env.TAGS }}
     - name: Build and push release
-      uses: docker/build-push-action@v3
+      uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
       with:
         context: .
         push: ${{ github.actor == github.repository_owner }}
@@ -87,15 +89,15 @@ jobs:
         cache-from: |
           ${{ github.repository }}-cache
         cache-to: |
-          type=registry,ref=${{ github.repository }}-cache,mode=max
-        platforms: ${{ env.PLATFORMS }}
+          ${{ github.actor == github.repository_owner && format('type=registry,ref={0}-cache,mode=max', github.repository) || '' }}
+        platforms: ${{ github.actor == github.repository_owner && env.PLATFORMS || 'linux/amd64' }}
         build-args: |
           DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
           VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
           COMMIT=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
           REPOSITORY=${{ github.repository }}
     - name: Build and push build image
-      uses: docker/build-push-action@v3
+      uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
       with:
         context: .
         push: ${{ github.actor == github.repository_owner }}
@@ -106,8 +108,8 @@ jobs:
         cache-from: |
           ${{ github.repository }}-cache
         cache-to: |
-          type=registry,ref=${{ github.repository }}-cache,mode=max
-        platforms: ${{ env.PLATFORMS }}
+          ${{ github.actor == github.repository_owner && format('type=registry,ref={0}-cache,mode=max', github.repository) || '' }}
+        platforms: ${{ github.actor == github.repository_owner && env.PLATFORMS || 'linux/amd64' }}
         build-args: |
           DATE=${{ fromJSON(steps.buildmeta.outputs.json).labels['org.opencontainers.image.created'] }}
           VERSION=${{ fromJSON(steps.buildmeta.outputs.json).labels['org.opencontainers.image.version'] }}
